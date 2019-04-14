@@ -25,6 +25,8 @@
 
 package java.util;
 
+import sun.misc.SharedSecrets;
+
 import java.io.IOException;
 import java.io.InvalidObjectException;
 import java.io.Serializable;
@@ -34,7 +36,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import sun.misc.SharedSecrets;
 
 /**
  * Hash table based implementation of the <tt>Map</tt> interface.  This
@@ -233,19 +234,19 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     /**
      * The default initial capacity - MUST be a power of two.
      */
-    static final int DEFAULT_INITIAL_CAPACITY = 1 << 4; // aka 16
+    static final int DEFAULT_INITIAL_CAPACITY = 1 << 4; // aka 16 // 默认容量16
 
     /**
      * The maximum capacity, used if a higher value is implicitly specified
      * by either of the constructors with arguments.
      * MUST be a power of two <= 1<<30.
      */
-    static final int MAXIMUM_CAPACITY = 1 << 30;
+    static final int MAXIMUM_CAPACITY = 1 << 30; // 最大容量
 
     /**
      * The load factor used when none specified in constructor.
      */
-    static final float DEFAULT_LOAD_FACTOR = 0.75f;
+    static final float DEFAULT_LOAD_FACTOR = 0.75f; // 默认负载因子0.75
 
     /**
      * The bin count threshold for using a tree rather than list for a
@@ -255,14 +256,14 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * tree removal about conversion back to plain bins upon
      * shrinkage.
      */
-    static final int TREEIFY_THRESHOLD = 8;
+    static final int TREEIFY_THRESHOLD = 8; // 链表节点转为红黑树节点的阈值，9个节点转
 
     /**
      * The bin count threshold for untreeifying a (split) bin during a
      * resize operation. Should be less than TREEIFY_THRESHOLD, and at
      * most 6 to mesh with shrinkage detection under removal.
      */
-    static final int UNTREEIFY_THRESHOLD = 6;
+    static final int UNTREEIFY_THRESHOLD = 6; // 红黑树节点转为链表节点的阈值，6个节点转
 
     /**
      * The smallest table capacity for which bins may be treeified.
@@ -270,13 +271,13 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * Should be at least 4 * TREEIFY_THRESHOLD to avoid conflicts
      * between resizing and treeification thresholds.
      */
-    static final int MIN_TREEIFY_CAPACITY = 64;
+    static final int MIN_TREEIFY_CAPACITY = 64; // 链表转红黑树时，table数组的最小长度
 
     /**
      * Basic hash bin node, used for most entries.  (See below for
      * TreeNode subclass, and in LinkedHashMap for its Entry subclass.)
      */
-    static class Node<K,V> implements Map.Entry<K,V> {
+    static class Node<K,V> implements Map.Entry<K,V> { // 基本hash节点
         final int hash;
         final K key;
         V value;
@@ -336,7 +337,17 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      */
     static final int hash(Object key) {
         int h;
+        // 方法：
+        //     1. 先拿到key的hashCode值，
+        //     2. 将hashCode的高16位参与运算
         return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
+        // 目的：
+        //       主要是为了在table的length小的时候，让高位也参与运算，
+        //       高16位 ^ 低16位，信息混合，使得新值更具有随机性，并且不会有太大的开销
+        // 原因：
+        //    1. HashMap的实现方式依赖于hashCode函数的实现，特别是，hash值的低位应该均匀分布，
+        //       如果在较低位上有许多冲突，则HashMap将会出现较大的桶碰撞几率
+        //    2. 因为HashCode方法的实现超出了HashMap的控制范围（每个对象都可以有自己的实现方式，质量参差不齐）
     }
 
     /**
@@ -376,13 +387,13 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * Returns a power of two size for the given target capacity.
      */
     static final int tableSizeFor(int cap) {
-        int n = cap - 1;
-        n |= n >>> 1;
-        n |= n >>> 2;
-        n |= n >>> 4;
-        n |= n >>> 8;
-        n |= n >>> 16;
-        return (n < 0) ? 1 : (n >= MAXIMUM_CAPACITY) ? MAXIMUM_CAPACITY : n + 1;
+        int n = cap - 1; // 当cap为2的n次方时，返回自己（否则，当cap为2的n次方时，最后返回的为cap*2）
+        n |= n >>> 1; // 01xxxx...xxx |= 001xxx...xxx => 011xxx...xxx
+        n |= n >>> 2; // 011xxx...xxx |= 01111x...xxx => 01111x...xxx
+        n |= n >>> 4; // 01111x...xxx |= 01111x...xxx => 011111...xxx
+        n |= n >>> 8; // 01111x...xxx |= 01111x...xxx => 011111...xxx
+        n |= n >>> 16; // 01111x...xxx |= 011111...111 => 011111...111
+        return (n < 0) ? 1 : (n >= MAXIMUM_CAPACITY) ? MAXIMUM_CAPACITY : n + 1; // n + 1 = 100000...000
     }
 
     /* ---------------- Fields -------------- */
@@ -393,7 +404,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * (We also tolerate length zero in some operations to allow
      * bootstrapping mechanics that are currently not needed.)
      */
-    transient Node<K,V>[] table;
+    transient Node<K,V>[] table; // Node数组的形式
 
     /**
      * Holds cached entrySet(). Note that AbstractMap fields are used
@@ -404,7 +415,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     /**
      * The number of key-value mappings contained in this map.
      */
-    transient int size;
+    transient int size; // map中包含的键值对的数量
 
     /**
      * The number of times this HashMap has been structurally modified
@@ -413,7 +424,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * rehash).  This field is used to make iterators on Collection-views of
      * the HashMap fail-fast.  (See ConcurrentModificationException).
      */
-    transient int modCount;
+    transient int modCount; // map被结构化变更的次数
 
     /**
      * The next size value at which to resize (capacity * load factor).
@@ -424,14 +435,14 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     // Additionally, if the table array has not been allocated, this
     // field holds the initial array capacity, or zero signifying
     // DEFAULT_INITIAL_CAPACITY.)
-    int threshold;
+    int threshold; // map重新分配尺寸的阈值，比如：threshold = 16 * 0.75 = 12，当增加到13个键值对时进行扩容，
 
     /**
      * The load factor for the hash table.
      *
      * @serial
      */
-    final float loadFactor;
+    final float loadFactor; // 加载因子
 
     /* ---------------- Public operations -------------- */
 
@@ -567,13 +578,15 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     final Node<K,V> getNode(int hash, Object key) {
         Node<K,V>[] tab; Node<K,V> first, e; int n; K k;
         if ((tab = table) != null && (n = tab.length) > 0 &&
-            (first = tab[(n - 1) & hash]) != null) {
+            (first = tab[(n - 1) & hash]) != null) { // x % 2^n = x & (2^n - 1)，元素分布相对比较均匀，且&比%效率更高
             if (first.hash == hash && // always check first node
                 ((k = first.key) == key || (key != null && key.equals(k))))
                 return first;
             if ((e = first.next) != null) {
+                // 如果是红黑树节点，调用红黑树的查找目标节点方法getTreeNode()
                 if (first instanceof TreeNode)
                     return ((TreeNode<K,V>)first).getTreeNode(hash, key);
+                // 走到这代表节点是链表节点，向下遍历链表，直到找到节点的key和传入的key相等时，返回该节点
                 do {
                     if (e.hash == hash &&
                         ((k = e.key) == key || (key != null && key.equals(k))))
@@ -583,6 +596,19 @@ public class HashMap<K,V> extends AbstractMap<K,V>
         }
         return null;
     }
+    /***************************************************************************************************************
+     *                            定位哈希桶数组索引位置：first = hash & (table.length - 1)                        *
+     * *************************************************************************************************************
+     *                                                                                                             *
+     * 因为 x % 2^n = x & (2^n - 1)，所以((n = tab.length) - 1) & hash  等价于 hash % tab.length                   *
+     * 例子：table.length = 16                                                                                     *
+     *      h = hashCode():            1111 1111 1111 1111 1010 0000 1111 1010           --|                       *
+     *      h >>> 16:                  0000 0000 0000 0000 1111 1111 1111 1111              >> hash()计算哈希值    *
+     *      h ^ h >>> 16:              1111 1111 1111 1111 0101 1111 0000 0101           --|                       *
+     *      table.length - 1:          0000 0000 0000 0000 0000 0000 0000 1111 = 15         >> 计算索引位置        *
+     *      hash & (table.length - 1): 0000 0000 0000 0000 0000 0000 0000 0101 = 5       --|                       *
+     *                                                                                                             *
+     * ************************************************************************************************************/
 
     /**
      * Returns <tt>true</tt> if this map contains a mapping for the
@@ -1857,22 +1883,30 @@ public class HashMap<K,V> extends AbstractMap<K,V>
             do {
                 int ph, dir; K pk;
                 TreeNode<K,V> pl = p.left, pr = p.right, q;
+                // 传入的hash值小于p节点的hash值，则往p节点的左边遍历
                 if ((ph = p.hash) > h)
                     p = pl;
+                // 传入的hash值大于p节点的hash值，则往p节点的右边遍历
                 else if (ph < h)
                     p = pr;
+                // 传入的hash值、key与p节点的hash值、key相等时，则p为目标节点，返回p节点
                 else if ((pk = p.key) == k || (k != null && k.equals(pk)))
                     return p;
+                // p节点的左节点为空，则向右遍历
                 else if (pl == null)
                     p = pr;
+                // p节点的右节点为空，则向左遍历
                 else if (pr == null)
                     p = pl;
+                // 如果传入的key(k)所属的类实现了Comparable接口，则将传入的k与p.key进行比较
                 else if ((kc != null ||
-                          (kc = comparableClassFor(k)) != null) &&
-                         (dir = compareComparables(kc, k, pk)) != 0)
-                    p = (dir < 0) ? pl : pr;
+                          (kc = comparableClassFor(k)) != null) && // 此行结果为true代表k实现Comparable接口
+                         (dir = compareComparables(kc, k, pk)) != 0) // k<pk则dir<0, k>pk则dir>0
+                    p = (dir < 0) ? pl : pr; // dir<0向左遍历，dir>0向右遍历
+                // 代码走到此处，说明key所属类没有实现Comparable接口，直接指定向p的右边遍历
                 else if ((q = pr.find(h, k, kc)) != null)
                     return q;
+                // 代码走到此处，说明上一个向右遍历(pr.find(h, k, kc))无结果，因此直接向左遍历
                 else
                     p = pl;
             } while (p != null);
