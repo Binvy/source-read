@@ -32,6 +32,7 @@ package java.lang.reflect;
  *
  * @since 1.5
  */
+// 包含：原始类型，参数化类型，数组类型，类型变量，基本类型。
 public interface Type {
     /**
      * Returns a string describing this type, including information

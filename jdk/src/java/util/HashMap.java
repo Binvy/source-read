@@ -353,6 +353,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     /**
      * Returns x's Class if it is of the form "class C implements
      * Comparable<C>", else null.
+     * 如果x实现了Comparable接口，则返回x的Class
      */
     static Class<?> comparableClassFor(Object x) {
         if (x instanceof Comparable) {
@@ -651,43 +652,55 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
                    boolean evict) {
         Node<K,V>[] tab; Node<K,V> p; int n, i;
+        // 如果table为空，或者length为0，则调用resize方法进行初始化
         if ((tab = table) == null || (n = tab.length) == 0)
             n = (tab = resize()).length;
+        // 通过hash值计算索引位置，如果table该索引位置节点为空，则新建节点
         if ((p = tab[i = (n - 1) & hash]) == null)
             tab[i] = newNode(hash, key, value, null);
+        // 如果table表该索引位置不为空
         else {
             Node<K,V> e; K k;
+            // 判断p节点的hash、key与传入的hash、key是否相等
             if (p.hash == hash &&
                 ((k = p.key) == key || (key != null && key.equals(k))))
+                // 如果相等，则p节点为要查找的目标节点，赋值给e
                 e = p;
+            // 判断p节点是否为红黑树节点，如果是则调用红黑树的putTreeVal方法查找目标节点
             else if (p instanceof TreeNode)
                 e = ((TreeNode<K,V>)p).putTreeVal(this, tab, hash, key, value);
+            // 走到这说明p节点为普通链表节点
             else {
+                // 遍历此链表，binCount用于统计节点数
                 for (int binCount = 0; ; ++binCount) {
+                    // 判断p.next是否为空，如果为空，代表不存在目标节点，则新增一个节点插入链表尾部，并赋值给节点e
                     if ((e = p.next) == null) {
                         p.next = newNode(hash, key, value, null);
+                        // 计算节点是否超过8个，减1是因为循环是从p.next开始的
                         if (binCount >= TREEIFY_THRESHOLD - 1) // -1 for 1st
-                            treeifyBin(tab, hash);
+                            treeifyBin(tab, hash); // 如果超过8个，调用treefiyBin方法将该链表转为红黑树
                         break;
                     }
+                    // 如果e节点的hash、key与传入的hash、key相等，则e为目标节点，跳出循环，
                     if (e.hash == hash &&
                         ((k = e.key) == key || (key != null && key.equals(k))))
                         break;
                     p = e;
                 }
             }
+            // e不为空，代表根据传入的hash、key查找到了节点，将该节点的value值覆盖，返回旧值oldValue
             if (e != null) { // existing mapping for key
                 V oldValue = e.value;
                 if (!onlyIfAbsent || oldValue == null)
                     e.value = value;
-                afterNodeAccess(e);
+                afterNodeAccess(e); // 用于LinkedHashMap
                 return oldValue;
             }
         }
         ++modCount;
-        if (++size > threshold)
+        if (++size > threshold) // 插入节点后超过“重新分配尺寸的阈值”，则调用resize方法进行扩容
             resize();
-        afterNodeInsertion(evict);
+        afterNodeInsertion(evict); // 用于LinkedList
         return null;
     }
 
@@ -780,22 +793,25 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      */
     final void treeifyBin(Node<K,V>[] tab, int hash) {
         int n, index; Node<K,V> e;
+        // table为空，或者length小于64，进行尺寸调整
         if (tab == null || (n = tab.length) < MIN_TREEIFY_CAPACITY)
             resize();
+        // 根据hash值计算索引位置，遍历该索引位置的链表
         else if ((e = tab[index = (n - 1) & hash]) != null) {
             TreeNode<K,V> hd = null, tl = null;
             do {
-                TreeNode<K,V> p = replacementTreeNode(e, null);
-                if (tl == null)
+                TreeNode<K,V> p = replacementTreeNode(e, null); // 链表节点转换为红黑树节点
+                if (tl == null) // 第一次循环，hd设置为头节点p
                     hd = p;
                 else {
-                    p.prev = tl;
-                    tl.next = p;
+                    p.prev = tl; // 当前节点的prev节点设置为上一个节点
+                    tl.next = p; // 上一个节点的next节点设置为当前节点
                 }
-                tl = p;
+                tl = p; // tl赋值给p，在下一次循环中作为上一个节点
             } while ((e = e.next) != null);
+            // 将table该索引位置赋值为新转的树节点的头节点
             if ((tab[index] = hd) != null)
-                hd.treeify(tab);
+                hd.treeify(tab); // 以头节点为根节点，构建红黑树
         }
     }
 
@@ -1849,27 +1865,32 @@ public class HashMap<K,V> extends AbstractMap<K,V>
         }
 
         /**
-         * Ensures that the given root is the first node of its bin.
+         * Ensures that the given root is the first node of its bin.<br>
+         * 如果当前索引位置的头节点不是root节点, 则将root的上一个节点和下一个节点进行关联,<br>
+         * 将root放到头节点的位置, 原头节点放在root的next节点上
          */
         static <K,V> void moveRootToFront(Node<K,V>[] tab, TreeNode<K,V> root) {
             int n;
             if (root != null && tab != null && (n = tab.length) > 0) {
                 int index = (n - 1) & root.hash;
                 TreeNode<K,V> first = (TreeNode<K,V>)tab[index];
-                if (root != first) {
+                if (root != first) { // 如果root节点不是该索引位置的头节点
                     Node<K,V> rn;
-                    tab[index] = root;
+                    tab[index] = root; // 将该索引位置的头节点赋值为root根节点
                     TreeNode<K,V> rp = root.prev;
+                    // 如果root节点的下一个节点不为空, 则将root节点的下一个节点的prev属性设置为root节点的上一个节点
                     if ((rn = root.next) != null)
                         ((TreeNode<K,V>)rn).prev = rp;
+                    // 如果root节点的上一个节点不为空, 则将root节点的上一个节点的next属性设置为root节点的下一个节点
                     if (rp != null)
                         rp.next = rn;
+                    // 如果原头节点不为空, 则将原头节点的prev属性设置为root节点
                     if (first != null)
                         first.prev = root;
-                    root.next = first;
-                    root.prev = null;
+                    root.next = first; // 将root节点的next节点设置为原头节点
+                    root.prev = null; // 将root节点的prev节点设置为null
                 }
-                assert checkInvariants(root);
+                assert checkInvariants(root); // 检查树是否正常
             }
         }
 
@@ -1927,6 +1948,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
          * equivalence across rebalancings. Tie-breaking further than
          * necessary simplifies testing a bit.
          */
+        // 用于哈希值相同并且无法比较时进行比较，只是一个一致性的插入规则，用来维护重定位的等价性
         static int tieBreakOrder(Object a, Object b) {
             int d;
             if (a == null || b == null ||
@@ -1943,28 +1965,33 @@ public class HashMap<K,V> extends AbstractMap<K,V>
          */
         final void treeify(Node<K,V>[] tab) {
             TreeNode<K,V> root = null;
-            for (TreeNode<K,V> x = this, next; x != null; x = next) {
-                next = (TreeNode<K,V>)x.next;
-                x.left = x.right = null;
-                if (root == null) {
-                    x.parent = null;
-                    x.red = false;
-                    root = x;
+            for (TreeNode<K,V> x = this, next; x != null; x = next) { // this即为调用此方法的树节点
+                next = (TreeNode<K,V>)x.next; // next赋值为x的next节点
+                x.left = x.right = null; // 将x的左右节点设置为空
+                if (root == null) { // 如果还没有根节点，则将x构造为根节点
+                    x.parent = null; // 根节点没有父节点
+                    x.red = false; // 根节点必须为黑色
+                    root = x; // 将x设置为根节点
                 }
                 else {
                     K k = x.key;
                     int h = x.hash;
                     Class<?> kc = null;
+                    // 如果当前节点x不是根节点，则从根节点开始查找属于该节点的位置
                     for (TreeNode<K,V> p = root;;) {
                         int dir, ph;
                         K pk = p.key;
+                        // 如果调用节点的hash值小于p节点的hash值，dir赋值为-1，表示向p的左边查找
                         if ((ph = p.hash) > h)
                             dir = -1;
+                        // 如果调用节点的hash值大于p节点的hash值，dir赋值为1，表示向p的右边查找
                         else if (ph < h)
                             dir = 1;
+                        // 如果k没有实现Comparable接口 或者 x节点的key和p节点的key相等
                         else if ((kc == null &&
                                   (kc = comparableClassFor(k)) == null) ||
                                  (dir = compareComparables(kc, k, pk)) == 0)
+                            // 使用定义的一套规则来比较x节点和p节点的大小，用来决定向左还是向右查找
                             dir = tieBreakOrder(k, pk);
 
                         TreeNode<K,V> xp = p;
@@ -1974,12 +2001,14 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                                 xp.left = x;
                             else
                                 xp.right = x;
+                            // 进行红黑树的插入平衡(通过左旋、右旋和改变节点颜色来保证当前树符合红黑树的要求)
                             root = balanceInsertion(root, x);
                             break;
                         }
                     }
                 }
             }
+            // 如果root节点不在table索引位置的头结点, 则将其调整为头结点
             moveRootToFront(tab, root);
         }
 
@@ -2002,48 +2031,61 @@ public class HashMap<K,V> extends AbstractMap<K,V>
 
         /**
          * Tree version of putVal.
+         * 红黑树插入会同时维护原来的链表属性, 即原来的next属性
          */
         final TreeNode<K,V> putTreeVal(HashMap<K,V> map, Node<K,V>[] tab,
                                        int h, K k, V v) {
             Class<?> kc = null;
             boolean searched = false;
+            // 查找根节点，索引位置的头节点并不一定为红黑树的根节点
             TreeNode<K,V> root = (parent != null) ? root() : this;
-            for (TreeNode<K,V> p = root;;) {
+            for (TreeNode<K,V> p = root;;) { // 将根节点赋值给p，开始遍历
                 int dir, ph; K pk;
+                // 如果传入的hash值h，小于p节点的hash值，则将dir赋值为-1，表示向p的左边遍历
                 if ((ph = p.hash) > h)
                     dir = -1;
+                // 如果传入的hash值h，大于p节点的hash值，则将dir赋值为1，表示向p的右边遍历
                 else if (ph < h)
                     dir = 1;
+                // 走到这说明传入的hash等于p节点的hash，先判断传入的key与p.key是否相等，相等则p为目标节点，返回p节点
                 else if ((pk = p.key) == k || (k != null && k.equals(pk)))
                     return p;
+                // 如果传入的key(K)没有实现Comparable接口，或者实现了Comparable接口并且根据compareTo方法判断key与p.key相等
                 else if ((kc == null &&
                           (kc = comparableClassFor(k)) == null) ||
                          (dir = compareComparables(kc, k, pk)) == 0) {
+                    // 则进行一次树的节点查找
                     if (!searched) {
                         TreeNode<K,V> q, ch;
-                        searched = true;
+                        searched = true; // 只有第一次会进行此遍历
+                        // 从p节点的左节点和右节点分别根据hash、key、与key.Class调用find方法进行查找，如果查找到节点则直接返回
                         if (((ch = p.left) != null &&
                              (q = ch.find(h, k, kc)) != null) ||
                             ((ch = p.right) != null &&
                              (q = ch.find(h, k, kc)) != null))
                             return q;
                     }
+                    // 否则，使用定义的一套规则来比较k和p.key的大小，从而决定向左还是向右查找
                     dir = tieBreakOrder(k, pk);
                 }
 
-                TreeNode<K,V> xp = p;
+                TreeNode<K,V> xp = p; // xp赋值为x的父节点，中间变量，用于下面给x的父节点赋值
+                // dir<=0则向p左边查找，否则向p右边查找，如果为null，则表示该位置即为x的目标位置
                 if ((p = (dir <= 0) ? p.left : p.right) == null) {
+                    // 走进来，则表示已经找到x的位置，只需将x放到该位置即可
                     Node<K,V> xpn = xp.next;
+                    // 创建新的节点x，将新节点x插入x的父节点xp与xp.next之间
                     TreeNode<K,V> x = map.newTreeNode(h, k, v, xpn);
                     if (dir <= 0)
-                        xp.left = x;
+                        xp.left = x; // 如果dir<=0，则表示x为xp的左节点
                     else
-                        xp.right = x;
-                    xp.next = x;
-                    x.parent = x.prev = xp;
+                        xp.right = x; // 否则，表示x为xp的右节点
+                    xp.next = x; // 将xp的next节点设置为x
+                    x.parent = x.prev = xp; // 将x的父节点、prev节点设置为xp
+                    // 如果xpn不为空，则将xpn的prev节点设置x，与上文(map.newTreeNode)的x.next=xpn对应
                     if (xpn != null)
                         ((TreeNode<K,V>)xpn).prev = x;
-                    moveRootToFront(tab, balanceInsertion(root, x));
+                    moveRootToFront(tab, balanceInsertion(root, x)); // 进行红黑树的插入平衡调整
                     return null;
                 }
             }
@@ -2409,14 +2451,19 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                 return false;
             if (tp != null && t != tp.left && t != tp.right)
                 return false;
+            // 如果左节点不为空，左节点的hash值不能大于t节点的hash值
             if (tl != null && (tl.parent != t || tl.hash > t.hash))
                 return false;
+            // 如果右节点不为空，右节点的hash值不能小于t节点的hash值
             if (tr != null && (tr.parent != t || tr.hash < t.hash))
                 return false;
+            // 如果当前节点为红色, 则该节点的左右节点都不能为红色
             if (t.red && tl != null && tl.red && tr != null && tr.red)
                 return false;
+            // 遍历校验左子树
             if (tl != null && !checkInvariants(tl))
                 return false;
+            // 遍历校验右子树
             if (tr != null && !checkInvariants(tr))
                 return false;
             return true;
