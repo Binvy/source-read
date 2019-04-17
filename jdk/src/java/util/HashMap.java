@@ -705,12 +705,53 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     }
 
     /**
+     * 如果老表的容量大于0，判断老表的容量是否超过最大容量值：如果超过则将阈值设置为Integer.MAX_VALUE，并直接返回老表（此时oldCap * 2比Integer.MAX_VALUE大，因此无法进行重新分布，只是单纯的将阈值扩容到最大）；如果容量 * 2小于最大容量并且不小于16，则将阈值设置为原来的两倍。
+     * 如果老表的容量为0，老表的阈值大于0，这种情况是传了容量的new方法创建的空表，将新表的容量设置为老表的阈值（这种情况发生在新创建的HashMap第一次put时，该HashMap初始化的时候传了初始容量，由于HashMap并没有capacity变量来存放容量值，因此传进来的初始容量是存放在threshold变量上（查看HashMap(int initialCapacity, float loadFactor)方法），因此此时老表的threshold的值就是我们要新创建的HashMap的capacity，所以将新表的容量设置为老表的阈值。
+     * 如果老表的容量为0，老表的阈值为0，这种情况是没有传容量的new方法创建的空表，将阈值和容量设置为默认值。
+     * 如果新表的阈值为空，则通过新的容量 * 负载因子获得阈值（这种情况是初始化的时候传了初始容量，跟第2点相同情况，也只有走到第2点才会走到该情况）。
+     * 将当前阈值设置为刚计算出来的新的阈值，定义新表，容量为刚计算出来的新容量，将当前的表设置为新定义的表。
+     * 如果老表不为空，则需遍历所有节点，将节点赋值给新表。
+     * 将老表上索引为j的头结点赋值给e节点，并将老表上索引为j的节点设置为空。
+     * 如果e的next节点为空，则代表老表的该位置只有1个节点，通过hash值计算新表的索引位置，直接将该节点放在新表的该位置上。
+     * 如果e的next节点不为空，并且e为TreeNode，则调用split方法（见下文代码块10）进行hash分布。
+     * 如果e的next节点不为空，并且e为普通的链表节点，则进行普通的hash分布。
+     * 如果e的hash值与老表的容量（为一串只有1个为2的二进制数，例如16为0000 0000 0001 0000）进行位与运算为0，则说明e节点扩容后的索引位置跟老表的索引位置一样（见例子1），进行链表拼接操作：如果loTail为空，代表该节点为第一个节点，则将loHead赋值为该节点；否则将节点添加在loTail后面，并将loTail赋值为新增的节点。
+     * 如果e的hash值与老表的容量（为一串只有1个为2的二进制数，例如16为0000 0000 0001 0000）进行位与运算为1，则说明e节点扩容后的索引位置为：老表的索引位置＋oldCap（见例子1），进行链表拼接操作：如果hiTail为空，代表该节点为第一个节点，则将hiHead赋值为该节点；否则将节点添加在hiTail后面，并将hiTail赋值为新增的节点。
+     * 老表节点重新hash分布在新表结束后，如果loTail不为空（说明老表的数据有分布到新表上原索引位置的节点），则将最后一个节点的next设为空，并将新表上原索引位置的节点设置为对应的头结点；如果hiTail不为空（说明老表的数据有分布到新表上原索引+oldCap位置的节点），则将最后一个节点的next设为空，并将新表上索引位置为原索引+oldCap的节点设置为对应的头结点。
+     * 返回新表。
+     * ---------------------
+     * 作者：程序员囧辉
+     * 来源：CSDN
+     * 原文：https://blog.csdn.net/v123411739/article/details/78996181
+     * 版权声明：本文为博主原创文章，转载请附上博文链接！
+     */
+    /**
      * Initializes or doubles table size.  If null, allocates in
      * accord with initial capacity target held in field threshold.
      * Otherwise, because we are using power-of-two expansion, the
      * elements from each bin must either stay at same index, or move
      * with a power of two offset in the new table.
-     *
+     * <pre>
+     * 如果老表的容量大于0，判断老表的容量是否超过最大容量值：如果超过则将阈值设置为Integer.MAX_VALUE，并直接返回老表（此时oldCap * 2比Integer.MAX_VALUE大，因此无法进行重新分布，只是单纯的将阈值扩容到最大）；如果容量 * 2小于最大容量并且不小于16，则将阈值设置为原来的两倍。
+     * 如果老表的容量为0，老表的阈值大于0，这种情况是传了容量的new方法创建的空表，将新表的容量设置为老表的阈值（这种情况发生在新创建的HashMap第一次put时，该HashMap初始化的时候传了初始容量，由于HashMap并没有capacity变量来存放容量值，因此传进来的初始容量是存放在threshold变量上（查看HashMap(int initialCapacity, float loadFactor)方法），因此此时老表的threshold的值就是我们要新创建的HashMap的capacity，所以将新表的容量设置为老表的阈值。
+     * 如果老表的容量为0，老表的阈值为0，这种情况是没有传容量的new方法创建的空表，将阈值和容量设置为默认值。
+     * 如果新表的阈值为空，则通过新的容量 * 负载因子获得阈值（这种情况是初始化的时候传了初始容量，跟第2点相同情况，也只有走到第2点才会走到该情况）。
+     * 将当前阈值设置为刚计算出来的新的阈值，定义新表，容量为刚计算出来的新容量，将当前的表设置为新定义的表。
+     * 如果老表不为空，则需遍历所有节点，将节点赋值给新表。
+     * 将老表上索引为j的头结点赋值给e节点，并将老表上索引为j的节点设置为空。
+     * 如果e的next节点为空，则代表老表的该位置只有1个节点，通过hash值计算新表的索引位置，直接将该节点放在新表的该位置上。
+     * 如果e的next节点不为空，并且e为TreeNode，则调用split方法（见下文代码块10）进行hash分布。
+     * 如果e的next节点不为空，并且e为普通的链表节点，则进行普通的hash分布。
+     * 如果e的hash值与老表的容量（为一串只有1个为2的二进制数，例如16为0000 0000 0001 0000）进行位与运算为0，则说明e节点扩容后的索引位置跟老表的索引位置一样（见例子1），进行链表拼接操作：如果loTail为空，代表该节点为第一个节点，则将loHead赋值为该节点；否则将节点添加在loTail后面，并将loTail赋值为新增的节点。
+     * 如果e的hash值与老表的容量（为一串只有1个为2的二进制数，例如16为0000 0000 0001 0000）进行位与运算为1，则说明e节点扩容后的索引位置为：老表的索引位置＋oldCap（见例子1），进行链表拼接操作：如果hiTail为空，代表该节点为第一个节点，则将hiHead赋值为该节点；否则将节点添加在hiTail后面，并将hiTail赋值为新增的节点。
+     * 老表节点重新hash分布在新表结束后，如果loTail不为空（说明老表的数据有分布到新表上原索引位置的节点），则将最后一个节点的next设为空，并将新表上原索引位置的节点设置为对应的头结点；如果hiTail不为空（说明老表的数据有分布到新表上原索引+oldCap位置的节点），则将最后一个节点的next设为空，并将新表上索引位置为原索引+oldCap的节点设置为对应的头结点。
+     * 返回新表。
+     * ---------------------
+     * 作者：程序员囧辉
+     * 来源：CSDN
+     * 原文：https://blog.csdn.net/v123411739/article/details/78996181
+     * 版权声明：本文为博主原创文章，转载请附上博文链接！
+     * </pre>
      * @return the table
      */
     final Node<K,V>[] resize() {
@@ -718,67 +759,79 @@ public class HashMap<K,V> extends AbstractMap<K,V>
         int oldCap = (oldTab == null) ? 0 : oldTab.length;
         int oldThr = threshold;
         int newCap, newThr = 0;
+        // 如果老table不为空
         if (oldCap > 0) {
+            // 如果容量 >= 最大容量2^30，设置扩容阈值为最大int值2^31-1，然后返回
             if (oldCap >= MAXIMUM_CAPACITY) {
                 threshold = Integer.MAX_VALUE;
                 return oldTab;
             }
+            // 如果容量*2 <= 最大容量2^30，并且容量 >= 初始容量16，则将容量、阈值设置为原来的2倍
             else if ((newCap = oldCap << 1) < MAXIMUM_CAPACITY &&
                      oldCap >= DEFAULT_INITIAL_CAPACITY)
                 newThr = oldThr << 1; // double threshold
         }
+        // 老表的容量为0，阈值大于0，是因为初始容量被放入阈值
         else if (oldThr > 0) // initial capacity was placed in threshold
-            newCap = oldThr;
+            newCap = oldThr; // 则将新表的容量设置为老表的阈值
+        // 如果老表的容量、阈值均为0，则为空表，设置默认容量和阈值
         else {               // zero initial threshold signifies using defaults
             newCap = DEFAULT_INITIAL_CAPACITY;
             newThr = (int)(DEFAULT_LOAD_FACTOR * DEFAULT_INITIAL_CAPACITY);
         }
+        // 如果新表的阈值为0，则根据新的容量 * 负载因子获得阈值
         if (newThr == 0) {
             float ft = (float)newCap * loadFactor;
             newThr = (newCap < MAXIMUM_CAPACITY && ft < (float)MAXIMUM_CAPACITY ?
                       (int)ft : Integer.MAX_VALUE);
         }
-        threshold = newThr;
+        threshold = newThr; // 将当前阈值设置为刚计算得到的新阈值
         @SuppressWarnings({"rawtypes","unchecked"})
+            // 定义新表，容量为刚计算得到的新容量
             Node<K,V>[] newTab = (Node<K,V>[])new Node[newCap];
-        table = newTab;
+        table = newTab; // 将当前的表赋值为新定义的表
+        // 如果老表不为空，则需遍历节点赋值给新表
         if (oldTab != null) {
             for (int j = 0; j < oldCap; ++j) {
                 Node<K,V> e;
-                if ((e = oldTab[j]) != null) {
-                    oldTab[j] = null;
+                if ((e = oldTab[j]) != null) { // 将索引为j的老表头节点赋值给e节点
+                    oldTab[j] = null; // 将老表的头节点设置为空，便于垃圾回收器回收空间
+                    // 如果老表头节点的next节点为空，表示老表该索引位置只有1个节点
                     if (e.next == null)
-                        newTab[e.hash & (newCap - 1)] = e;
+                        newTab[e.hash & (newCap - 1)] = e; // 通过hash值计算新表的索引位置，直接将e节点放在该索引位置
+                    // 如果e节点为树节点，调用树节点的hash分布（跟下面最后一个else的内容几乎相同）
                     else if (e instanceof TreeNode)
                         ((TreeNode<K,V>)e).split(this, newTab, j, oldCap);
                     else { // preserve order
-                        Node<K,V> loHead = null, loTail = null;
-                        Node<K,V> hiHead = null, hiTail = null;
+                        Node<K,V> loHead = null, loTail = null; // 存储跟原索引位置相同的节点
+                        Node<K,V> hiHead = null, hiTail = null; // 存储索引位置为原索引+原容量的节点
                         Node<K,V> next;
                         do {
                             next = e.next;
+                            // 如果e的hash值与老表容量进行与运算为0，则扩容后的索引位置跟老表索引位置一样
                             if ((e.hash & oldCap) == 0) {
-                                if (loTail == null)
-                                    loHead = e;
+                                if (loTail == null) // 如果loTail为空，代表该节点为第一个节点
+                                    loHead = e; // 则将loHead赋值给第一个节点
                                 else
-                                    loTail.next = e;
-                                loTail = e;
+                                    loTail.next = e; // 否则将节点添加在loTail后面
+                                loTail = e; // 并将loTail赋值为新增的节点e
                             }
+                            // 如果e的hash值与老表容量进行与运算不为0，则扩容后的索引位置=老表索引位置+老表容量oldCap
                             else {
-                                if (hiTail == null)
-                                    hiHead = e;
+                                if (hiTail == null) // 如果hiTail为空，代表该节点为第一个节点
+                                    hiHead = e; // 则将hiHead赋值给第一个节点
                                 else
-                                    hiTail.next = e;
-                                hiTail = e;
+                                    hiTail.next = e; // 否则将节点添加在hiTail后面
+                                hiTail = e; // 并将hiTail赋值为新增的节点e
                             }
                         } while ((e = next) != null);
                         if (loTail != null) {
-                            loTail.next = null;
-                            newTab[j] = loHead;
+                            loTail.next = null; // 最后一个节点的next设置为空
+                            newTab[j] = loHead; // 将原索引位置的节点设置为对应的头节点
                         }
                         if (hiTail != null) {
-                            hiTail.next = null;
-                            newTab[j + oldCap] = hiHead;
+                            hiTail.next = null; // 最后一个节点的next设置为空;
+                            newTab[j + oldCap] = hiHead; // 将索引位置为原索引+oldCap的节点设置为对应的头节点
                         }
                     }
                 }
@@ -2017,16 +2070,20 @@ public class HashMap<K,V> extends AbstractMap<K,V>
          * this node.
          */
         final Node<K,V> untreeify(HashMap<K,V> map) {
-            Node<K,V> hd = null, tl = null;
+            Node<K,V> hd = null, tl = null; // hd指向头结点, tl指向尾节点
+            // 从调用该方法的节点, 即链表的头结点开始遍历, 将所有节点全转为链表节点
             for (Node<K,V> q = this; q != null; q = q.next) {
+                // 调用replacementNode方法构建链表节点
                 Node<K,V> p = map.replacementNode(q, null);
+                // 如果tl为null, 则代表当前节点为第一个节点, 将hd赋值为该节点
                 if (tl == null)
                     hd = p;
+                // 否则, 将尾节点的next属性设置为当前节点p
                 else
                     tl.next = p;
-                tl = p;
+                tl = p; // 每次都将tl节点指向当前节点, 即尾节点
             }
-            return hd;
+            return hd; // 返回转换后的链表的头结点
         }
 
         /**
@@ -2200,55 +2257,72 @@ public class HashMap<K,V> extends AbstractMap<K,V>
          * Splits nodes in a tree bin into lower and upper tree bins,
          * or untreeifies if now too small. Called only from resize;
          * see above discussion about split bits and indices.
-         *
+         * <pre>
+         * 以调用此方法的节点开始，遍历整个红黑树节点（此处实际是遍历的链表节点，上文提过，红黑树节点也会同时维护链表结构）。
+         * 	如果e的hash值与老表的容量（为一串只有1个为2的二进制数，例如16为0000 0000 0001 0000）进行位与运算为0，则说明e节点扩容后的索引位置跟老表的索引位置一样（见下文例子1），进行链表拼接操作：如果loTail为空，代表该节点为第一个节点，则将loHead赋值为该节点；否则将节点添加在loTail后面，并将loTail赋值为新增的节点，并统计原索引位置的节点个数。
+         * 	如果e的hash值与老表的容量（为一串只有1个为2的二进制数，例如16为0000 0000 0001 0000）进行位与运算为1，则说明e节点扩容后的索引位置为：老表的索引位置＋oldCap（见例子1），进行链表拼接操作：如果hiTail为空，代表该节点为第一个节点，则将hiHead赋值为该节点；否则将节点添加在hiTail后面，并将hiTail赋值为新增的节点，并统计索引位置为原索引+oldCap的节点个数。
+         * 	如果原索引位置的节点不为空：如果当该索引位置节点数<=6个，调用untreeify方法（见下文代码块11）将红黑树节点转为链表节点；否则将原索引位置的节点设置为对应的头结点（即loHead结点），如果判断hiHead不为空则代表原来的红黑树（老表的红黑树由于节点被分到两个位置）已经被改变，需要重新构建新的红黑树，以loHead为根结点，调用treeify方法（见上文代码块7）构建新的红黑树。
+         * 	如果索引位置为原索引+oldCap的节点不为空：如果当该索引位置节点数<=6个，调用untreeify方法（见下文代码块11）将红黑树节点转为链表节点；否则将索引位置为原索引+oldCap的节点设置为对应的头结点（即hiHead结点），如果判断loHead不为空则代表原来的红黑树（老表的红黑树由于节点被分到两个位置）已经被改变，需要重新构建新的红黑树，以hiHead为根结点，调用treeify方法（见上文代码块7）构建新的红黑树。
+         * ---------------------
+         * 作者：程序员囧辉
+         * 来源：CSDN
+         * 原文：https://blog.csdn.net/v123411739/article/details/78996181
+         * 版权声明：本文为博主原创文章，转载请附上博文链接！
+         * </pre>
          * @param map the map
          * @param tab the table for recording bin heads
          * @param index the index of the table being split
          * @param bit the bit of hash to split on
          */
         final void split(HashMap<K,V> map, Node<K,V>[] tab, int index, int bit) {
-            TreeNode<K,V> b = this;
+            TreeNode<K,V> b = this; // 拿到调用此方法的节点并赋值给节点b
             // Relink into lo and hi lists, preserving order
-            TreeNode<K,V> loHead = null, loTail = null;
-            TreeNode<K,V> hiHead = null, hiTail = null;
+            TreeNode<K,V> loHead = null, loTail = null; // 存储跟原索引位置相同的节点
+            TreeNode<K,V> hiHead = null, hiTail = null; // 存储索引位置为:原索引+oldCap的节点
             int lc = 0, hc = 0;
-            for (TreeNode<K,V> e = b, next; e != null; e = next) {
-                next = (TreeNode<K,V>)e.next;
-                e.next = null;
+            for (TreeNode<K,V> e = b, next; e != null; e = next) { // 从b节点开始遍历
+                next = (TreeNode<K,V>)e.next; // next赋值为e的下个节点
+                e.next = null; // 同时将老表的节点设置为空，以便垃圾收集器回收
+                // 如果e的hash值与老表的容量进行与运算为0,则扩容后的索引位置跟老表的索引位置一样
                 if ((e.hash & bit) == 0) {
-                    if ((e.prev = loTail) == null)
-                        loHead = e;
+                    if ((e.prev = loTail) == null) // 如果loTail为空, 代表该节点为第一个节点
+                        loHead = e; // 则将loHead赋值为第一个节点
                     else
-                        loTail.next = e;
-                    loTail = e;
-                    ++lc;
+                        loTail.next = e;  // 否则将节点添加在loTail后面
+                    loTail = e; // 并将loTail赋值为新增的节点
+                    ++lc; // 统计原索引位置的节点个数
                 }
+                // 如果e的hash值与老表的容量进行与运算不为0,则扩容后的索引位置为:老表的索引位置＋oldCap
                 else {
-                    if ((e.prev = hiTail) == null)
-                        hiHead = e;
+                    if ((e.prev = hiTail) == null) // 如果hiTail为空, 代表该节点为第一个节点
+                        hiHead = e; // 则将hiHead赋值为第一个节点
                     else
-                        hiTail.next = e;
-                    hiTail = e;
-                    ++hc;
+                        hiTail.next = e; // 否则将节点添加在hiTail后面
+                    hiTail = e; // 并将hiTail赋值为新增的节点
+                    ++hc; // 统计索引位置为原索引+oldCap的节点个数
                 }
             }
 
-            if (loHead != null) {
-                if (lc <= UNTREEIFY_THRESHOLD)
+            if (loHead != null) { // 原索引位置的节点不为空
+                if (lc <= UNTREEIFY_THRESHOLD) // 节点个数少于6个则将红黑树转为链表结构
                     tab[index] = loHead.untreeify(map);
                 else {
-                    tab[index] = loHead;
+                    tab[index] = loHead; // 将原索引位置的节点设置为对应的头结点
+                    // hiHead不为空则代表原来的红黑树(老表的红黑树由于节点被分到两个位置)
+                    // 已经被改变, 需要重新构建新的红黑树
                     if (hiHead != null) // (else is already treeified)
-                        loHead.treeify(tab);
+                        loHead.treeify(tab); // 以loHead为根结点, 构建新的红黑树
                 }
             }
-            if (hiHead != null) {
-                if (hc <= UNTREEIFY_THRESHOLD)
+            if (hiHead != null) { // 索引位置为原索引+oldCap的节点不为空
+                if (hc <= UNTREEIFY_THRESHOLD) // 节点个数少于6个则将红黑树转为链表结构
                     tab[index + bit] = hiHead.untreeify(map);
                 else {
-                    tab[index + bit] = hiHead;
+                    tab[index + bit] = hiHead; // 将索引位置为原索引+oldCap的节点设置为对应的头结点
+                    // loHead不为空则代表原来的红黑树(老表的红黑树由于节点被分到两个位置)
+                    // 已经被改变, 需要重新构建新的红黑树
                     if (loHead != null)
-                        hiHead.treeify(tab);
+                        hiHead.treeify(tab);  // 以hiHead为根结点, 构建新的红黑树
                 }
             }
         }
@@ -2470,4 +2544,36 @@ public class HashMap<K,V> extends AbstractMap<K,V>
         }
     }
 
+
+    /* ********************************************************************************************************
+     *
+     * 例子1: 扩容后，节点重hash为什么只可能分布在原索引位置与原索引+oldCap位置？
+     *
+     *   假设老表的容量为16，即oldCap=16，则新表容量为16*2=32，假设节点1的hash值为0000 0000 0000 0000 0000 1111 0000 1010，
+     * 节点2的hash值为0000 0000 0000 0000 0000 1111 0001 1010，则节点1和节点2在老表的索引位置计算如下图计算1，由于老表的
+     * 长度限制，节点1和节点2的索引位置只取决于节点hash值的最后4位。再看计算2，计算2为新表的索引计算，可以知道如果两个
+     * 节点在老表的索引位置相同，则新表的索引位置只取决于节点hash值倒数第5位的值，而此位置的值刚好为老表的容量值16，此时
+     * 节点在新表的索引位置只有两种情况：原索引位置和原索引+oldCap位置（在此例中即为10和10+16=26）。由于结果只取决于节点
+     * hash值的倒数第5位，而此位置的值刚好为老表的容量值16，因此此时新表的索引位置的计算可以替换为计算3，直接使用节点的
+     * hash值与老表的容量16进行位于运算，如果结果为0则该节点在新表的索引位置为原索引位置，否则该节点在新表的索引位置为原
+     * 索引+oldCap位置。
+     *
+     * 计算1：
+     *    老表容量-1：0000 0000 0000 0000 0000 0000 0000 1111
+     *    节点1：     0000 0000 0000 0000 0000 1111 0000 1010   ->   0000 0000 0000 0000 0000 0000 0000 1010
+     *    节点2：     0000 0000 0000 0000 0000 1111 0001 1010   ->   0000 0000 0000 0000 0000 0000 0000 1010
+     *
+     * 计算2：
+     *    新表容量-1：0000 0000 0000 0000 0000 0000 0001 1111
+     *    节点1：     0000 0000 0000 0000 0000 1111 0000 1010   ->   0000 0000 0000 0000 0000 0000 0000 1010
+     *    节点2：     0000 0000 0000 0000 0000 1111 0001 1010   ->   0000 0000 0000 0000 0000 0000 0001 1010
+     *
+     * 计算3：
+     *    老表容量：  0000 0000 0000 0000 0000 0000 0001 0000
+     *    节点1：     0000 0000 0000 0000 0000 1111 0000 1010   ->   0000 0000 0000 0000 0000 0000 0000 0000
+     *    节点2：     0000 0000 0000 0000 0000 1111 0001 1010   ->   0000 0000 0000 0000 0000 0000 0001 0000
+     *
+     **********************************************************************************************************/
+
+    /
 }
