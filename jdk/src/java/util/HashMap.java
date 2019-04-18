@@ -908,15 +908,20 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     final Node<K,V> removeNode(int hash, Object key, Object value,
                                boolean matchValue, boolean movable) {
         Node<K,V>[] tab; Node<K,V> p; int n, index;
+        // 遍历查找表中与key值相等的节点
         if ((tab = table) != null && (n = tab.length) > 0 &&
-            (p = tab[index = (n - 1) & hash]) != null) {
+            (p = tab[index = (n - 1) & hash]) != null) { // 如果table表不为空，长度不为0，头节点不为空
             Node<K,V> node = null, e; K k; V v;
+            // 如果头节点p.key与入参key相同，则将头节点p赋值给node
             if (p.hash == hash &&
                 ((k = p.key) == key || (key != null && key.equals(k))))
                 node = p;
+            // 如果头节点p.next不为空
             else if ((e = p.next) != null) {
+                // 如果头节点p为红黑树节点，调用红黑树节点的查找方法
                 if (p instanceof TreeNode)
                     node = ((TreeNode<K,V>)p).getTreeNode(hash, key);
+                // 否则，头节点为链表节点，遍历节点查找与入参key相等的节点node
                 else {
                     do {
                         if (e.hash == hash &&
@@ -929,18 +934,22 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                     } while ((e = e.next) != null);
                 }
             }
+            // 如果能查找到与传入key相同的节点node，则移除该节点
             if (node != null && (!matchValue || (v = node.value) == value ||
                                  (value != null && value.equals(v)))) {
+                // 如果node节点为红黑树节点，调用红黑树节点的移除节点方法
                 if (node instanceof TreeNode)
                     ((TreeNode<K,V>)node).removeTreeNode(this, tab, movable);
+                // node节点==p节点，表示node节点为table头节点
                 else if (node == p)
-                    tab[index] = node.next;
+                    tab[index] = node.next; // 设置头节点为node节点的next节点
+                // 否则，p节点为node的父节点
                 else
-                    p.next = node.next;
-                ++modCount;
-                --size;
-                afterNodeRemoval(node);
-                return node;
+                    p.next = node.next; // 设置p节点的next节点为node的next节点
+                ++modCount; // 修改次数加一
+                --size; // table的节点总数减一
+                afterNodeRemoval(node); // 供LinkedHashMap使用
+                return node; // 返回被移除的节点
             }
         }
         return null;
@@ -2148,7 +2157,9 @@ public class HashMap<K,V> extends AbstractMap<K,V>
             }
         }
 
+
         /**
+         * <pre>
          * Removes the given node, that must be present before this call.
          * This is messier than typical red-black deletion code because we
          * cannot swap the contents of an interior node with a leaf
@@ -2157,101 +2168,188 @@ public class HashMap<K,V> extends AbstractMap<K,V>
          * linkages. If the current tree appears to have too few nodes,
          * the bin is converted back to a plain bin. (The test triggers
          * somewhere between 2 and 6 nodes, depending on tree structure).
+         *
+         *  如果table为空或者length为0直接返回。
+         *  根据hash值和length-1位于运算计算出索引的位置。
+         *  将索引位置的头结点赋值给first和root，removeTreeNode方法是被将要移除的节点node调用，因此removeTreeNode方法里的this即为将要被移除的节点node，将node的next节点赋值给succ节点，prev节点赋值给pred节点。
+         *  如果node节点的prev节点为空，则代表要被移除的node节点为头结点，则将table索引位置的值和first节点的值赋值为node的next节点（succ节点）即可。
+         *  否则将node的prev节点（pred节点）的next节点设置为node的next节点（succ节点），如果succ节点不为空，则将succ的prev节点设置为pred，与前面对应（TreeNode链表的移除，见开头第8点）。
+         *  如果进行到此first节点为空，则代表该索引位置已经没有节点则直接返回。
+         *  如果root的父节点不为空，则将root赋值为根结点（root在上面被赋值为索引位置的头结点，索引位置的头节点并不一定为红黑树的根结点）。
+         *  通过root节点来判断此红黑树是否太小，如果太小则转为链表节点并返回（转链表后就无需再进行下面的红黑树处理），链表维护部分到此结束，此前的代码说明了，红黑树在进行移除的同时也会维护链表结构，之后的代码为红黑树的移除节点处理。
+         *  上面已经说了this为将要被移除的node节点，将p节点赋值为将要被移除的node节点（则此时p节点就是我们要移除的节点），pl赋值为node的左节点, pr赋值为node的右节点（方法的命令见开头第6点），replacement变量用来存储将要替换掉被移除的node节点。
+         *  如果p的左节点和右节点都不为空时，s节点赋值为p的右节点；向s的左节点一直向左查找, 直到叶子节点，跳出循环时，s为叶子节点；交换p节点和s节点（叶子节点）的颜色（此文下面的所有操作都是为了实现将p节点和s节点进行位置调换，因此此处先将颜色替换）；sr赋值为s节点的右节点，pp节点赋值为p节点的父节点（命令规律见文章开头第6点）。
+         *  PS：下面的第一次调整和第二次调整是将p节点和s节点进行了位置调换，然后找出要替换掉p节点的replacement；第三次调整是将replacement节点覆盖掉p节点；这部分的代码逻辑比较不容易理解透，建议自己动手画图模拟。（下文图解1即为这三次调整的例子）
+         *  进行第一次调整：如果p节点的右节点即为叶子节点，将p的父节点赋值为s，将s的右节点赋值为p即可；否则，将p的父节点赋值为s的父节点sp，并判断sp是否为空，如果不为空，并判断s是sp的左节点还是右节点，将s节点替换为p节点；将s的右节点赋值为p节点的右节点pr，如果pr不为空则将pr的父节赋值为s节点。
+         *  进行第二次调整：将p节点的左节点清空（上文pl已经保存了该节点）；将p节点的右节点赋值为s的右节点sr，如果sr不为空，则将sr的父节点赋值为p节点；将s节点的左节点赋值为p的左节点pl，如果pl不为空，则将p左节点的父节点赋值为s节点；将s的父节点赋值为p的父节点pp，如果pp为空，则p节点为root节点，此时交换后s成为新的root节点，将root赋值为s节点；如果p不为root节点，并且p是父节点的左节点，将p父节点的左节点赋值为s节点；如果p不为root节点，并且p是父节点的右节点，将p父节点的右节点赋值为s节点；如果sr不为空，将replacement赋值为sr节点，否则赋值为p节点（为什么sr是replacement的首选，p为备选？见解释1）。
+         *  承接第10点的判断，第10点~第12点为p的左右节点都不为空的情况需要进行的处理；如果p的左节点不为空，右节点为空，将replacement赋值为p的左节点即可；如果p的右节点不为空，左节点为空，将replacement赋值为p的右节点即可；如果p的左右节点都为空，即p为叶子节点, 将replacement赋值为p节点本身。
+         *  进行第三次调整：如果p节点不是replacement（即p不是叶子节点），将replacement的父节点赋值为p的父节点，同事赋值给pp节点；如果pp为空（p节点没有父节点），即p为root节点，则将root节点赋值为replacement节点即可；如果p节点不是root节点，并且p节点为父节点的左节点，则将p父节点的左节点赋值为replacement节点；如果p节点不是root节点，并且p节点为父节点的右节点，则将p父节点的右节点赋值为replacement节点；p节点的位置已经被完整的替换为replacement节点, 将p节点清空。
+         *  如果p节点不为红色则进行红黑树删除平衡调整（如果删除的节点是红色则不会破坏红黑树的平衡无需调整，见文末的解释2）。
+         *  如果p节点为叶子节点，则简单的将p节点移除：将pp赋值为p节点的父节点，将p的parent节点设置为空，如果p的父节点pp存在，如果p节点为父节点的左节点，则将父节点的左节点赋值为空，如果p节点为父节点的右节点，则将父节点的右节点赋值为空。
+         *  如果movable为true，则调用moveRootToFront方法（见上文代码块8）将root节点移到索引位置的头结点。
+         *  </pre>
          */
         final void removeTreeNode(HashMap<K,V> map, Node<K,V>[] tab,
                                   boolean movable) {
+            // ==========  链表的处理 start ==========
             int n;
-            if (tab == null || (n = tab.length) == 0)
+            if (tab == null || (n = tab.length) == 0) // 表为空，或者表长度为空，直接返回
                 return;
+            // 根据节点hash值计算该节点的索引位置
             int index = (n - 1) & hash;
+            // first、node均赋值为索引位置的头节点
             TreeNode<K,V> first = (TreeNode<K,V>)tab[index], root = first, rl;
+            // succ赋值为this.next节点，pred赋值为this.prev节点
             TreeNode<K,V> succ = (TreeNode<K,V>)next, pred = prev;
+            // 如果this.prev为空，将table索引位置的节点、first节点赋值为this.next节点
             if (pred == null)
                 tab[index] = first = succ;
+            // 否则，将this.prev.next节点赋值为this.next节点（移除this.prev节点与this的链表关系）
             else
                 pred.next = succ;
+            // 如果this.next不为空，则将this.next.prev赋值为this.prev（移除this.next.prev节点与this的链表关系，与上步对应）
             if (succ != null)
                 succ.prev = pred;
+            // 如果first为空，代表该索引位置无任何节点，或者只有头节点且头节点被移除，即当前已无节点，直接返回
             if (first == null)
                 return;
+            // 如果root的父节点不为空，则将root赋值为根节点
             if (root.parent != null)
                 root = root.root();
+            // 通过root节点判断此红黑树是否太小，如果是则调用untreeify方法转为链表节点并返回
+            // （转链表后无需进行下面的红黑树处理，直接返回）
             if (root == null || root.right == null ||
                 (rl = root.left) == null || rl.left == null) {
                 tab[index] = first.untreeify(map);  // too small
                 return;
             }
+            // ==========  链表的处理 end ==========
+            // ==========  红黑树的处理 start ==========
+            // p、pl、pr分别赋值为this、this.left、this.right
             TreeNode<K,V> p = this, pl = left, pr = right, replacement;
+            // node的左节点和右节点都不为空时
             if (pl != null && pr != null) {
                 TreeNode<K,V> s = pr, sl;
+                // 向左遍历查找，直到找到叶子节点s，跳出循环
                 while ((sl = s.left) != null) // find successor
                     s = sl;
-                boolean c = s.red; s.red = p.red; p.red = c; // swap colors
-                TreeNode<K,V> sr = s.right;
-                TreeNode<K,V> pp = p.parent;
+                boolean c = s.red; s.red = p.red; p.red = c; // swap colors 交换p节点和s节点(叶子节点)的颜色
+                TreeNode<K,V> sr = s.right; // sr赋值为叶子节点s的右子节点s.right
+                TreeNode<K,V> pp = p.parent; // pp赋值为该节点的父节点this.parent
+                // ========== 第一次调整 start ==========
+                // 如果p为s的父节点
                 if (s == pr) { // p was s's direct parent
-                    p.parent = s;
-                    s.right = p;
+                    p.parent = s; // 将p的父节点赋值为s
+                    s.right = p; // 将s的右节点赋值为p
                 }
                 else {
                     TreeNode<K,V> sp = s.parent;
-                    if ((p.parent = sp) != null) {
-                        if (s == sp.left)
-                            sp.left = p;
-                        else
-                            sp.right = p;
+                    if ((p.parent = sp) != null) { // 将p的父节点赋值为s的父节点, 如果sp不为空
+                        if (s == sp.left) // 如果s节点为左节点
+                            sp.left = p; // 则将s的父节点的左节点赋值为p节点
+                        else // 如果s节点为右节点
+                            sp.right = p; // 则将s的父节点的右节点赋值为p节点
                     }
-                    if ((s.right = pr) != null)
-                        pr.parent = s;
+                    if ((s.right = pr) != null) // s的右节点赋值为p节点的右节点
+                        pr.parent = s; // p节点的右节点的父节点赋值为s
                 }
+                // ========== 第二次调整 start ==========
                 p.left = null;
-                if ((p.right = sr) != null)
-                    sr.parent = p;
-                if ((s.left = pl) != null)
-                    pl.parent = s;
-                if ((s.parent = pp) == null)
-                    root = s;
-                else if (p == pp.left)
-                    pp.left = s;
-                else
-                    pp.right = s;
+                if ((p.right = sr) != null) // 将p节点的右节点赋值为s的右节点, 如果sr不为空
+                    sr.parent = p; // 则将s右节点的父节点赋值为p节点
+                if ((s.left = pl) != null) // 将s节点的左节点赋值为p的左节点, 如果pl不为空
+                    pl.parent = s; // 则将p左节点的父节点赋值为s节点
+                if ((s.parent = pp) == null) // 将s的父节点赋值为p的父节点pp, 如果pp为空
+                    root = s; // 则p节点为root节点, 此时交换后s成为新的root节点
+                else if (p == pp.left) // 如果p不为root节点, 并且p是父节点的左节点
+                    pp.left = s; // 将p父节点的左节点赋值为s节点
+                else // 如果p不为root节点, 并且p是父节点的右节点
+                    pp.right = s; // 将p父节点的右节点赋值为s节点
                 if (sr != null)
-                    replacement = sr;
+                    replacement = sr; // 寻找replacement节点(用来替换掉p节点)
                 else
-                    replacement = p;
+                    replacement = p; // 寻找replacement节点
             }
-            else if (pl != null)
+            else if (pl != null) // 如果p的左节点不为空,右节点为空,replacement节点为p的左节点
                 replacement = pl;
-            else if (pr != null)
+            else if (pr != null) // 如果p的右节点不为空,左节点为空,replacement节点为p的右节点
                 replacement = pr;
-            else
+            else // 如果p的左右节点都为空, 即p为叶子节点, 替换节点为p节点本身
                 replacement = p;
-            if (replacement != p) {
+            // ========== 第三次调整 start ==========
+            if (replacement != p) { // 如果p节点不是叶子节点
+                // 将replacement节点的父节点赋值为p节点的父节点, 同时赋值给pp节点
                 TreeNode<K,V> pp = replacement.parent = p.parent;
-                if (pp == null)
-                    root = replacement;
-                else if (p == pp.left)
-                    pp.left = replacement;
-                else
-                    pp.right = replacement;
+                if (pp == null) // 如果p节点没有父节点, 即p为root节点
+                    root = replacement; // 则将root节点赋值为replacement节点即可
+                else if (p == pp.left) // 如果p节点不是root节点, 并且p节点为父节点的左节点
+                    pp.left = replacement; // 则将p父节点的左节点赋值为替换节点
+                else // 如果p节点不是root节点, 并且p节点为父节点的右节点
+                    pp.right = replacement; // 则将p父节点的右节点赋值为替换节点
+                // p节点的位置已经被完整的替换为替换节点, 将p节点清空, 以便垃圾收集器回收
                 p.left = p.right = p.parent = null;
             }
-
+            // 如果p节点不为红色则进行红黑树删除平衡调整
+            // (如果删除的节点是红色则不会破坏红黑树的平衡无需调整)
             TreeNode<K,V> r = p.red ? root : balanceDeletion(root, replacement);
 
-            if (replacement == p) {  // detach
-                TreeNode<K,V> pp = p.parent;
-                p.parent = null;
-                if (pp != null) {
-                    if (p == pp.left)
-                        pp.left = null;
-                    else if (p == pp.right)
-                        pp.right = null;
+            if (replacement == p) {  // detach // 如果p节点为叶子节点, 则简单的将p节点去除即可
+                TreeNode<K,V> pp = p.parent; // pp赋值为p节点的父节点
+                p.parent = null; // 将p的parent节点设置为空
+                if (pp != null) { // 如果p的父节点存在
+                    if (p == pp.left) // 如果p节点为父节点的左节点
+                        pp.left = null; // 则将父节点的左节点赋值为空
+                    else if (p == pp.right) // 如果p节点为父节点的右节点
+                        pp.right = null; // 则将父节点的右节点赋值为空
                 }
             }
             if (movable)
-                moveRootToFront(tab, r);
+                moveRootToFront(tab, r); // 将root节点移到索引位置的头结点
         }
+
+        /* ****************************************************************************************
+         *                                    removeTreeNode图解                                  *
+         * ****************************************************************************************
+         * 最复杂的情况：                                                                         *
+         *                                                                                        *
+         *       pp             |     pp              |      pp             |      pp             *
+         *         \            |                     |        \            |        \            *
+         *          p           |         s           |         s           |         s           *
+         *         / \          |          \          |        / \          |        / \          *
+         *       pl   pr        |           pr        |       pl  pr        |       pl  pr        *
+         *            /         |           /         |           /         |           /         *
+         *          sp          |          sp         |          sp         |          sp         *
+         *         /            |          /          |          /          |          /          *
+         *        s             |         p           |         p           |         sr          *
+         *         \            |        /            |          \          |                     *
+         *          sr          |       pl  sr        |           sr        |          p          *
+         *                      |                     | (replacement = sr)  |                     *
+         *    第一次调整前      |    第一次调整后     |    第二次调整后     |    第三次调整后     *
+         * ********** ********** ********** ********** ********** ********** ********** ***********/
+
+        /*  ****************************************************************************************
+         *   解释1：为什么sr是replacement的首选，p为备选？
+         *  ****************************************************************************************
+         *   解析：首先我们看sr是什么？从代码中可以看到sr第一次被赋值时，是在s节点进行了向左穷遍历结束后，
+         *   因此此时s节点是没有左节点的，sr即为s节点的右节点。而从上面的三次调整我们知道，p节点已经跟
+         *   s节点进行了位置调换，所以此时sr其实是p节点的右节点，并且p节点没有左节点，因此要移除p节点，
+         *   只需要将p节点的右节点sr覆盖掉p节点即可，因此sr是replacement的首选，如果sr为空，则代表p节点
+         *   为叶子节点，此时将p节点清空即可。
+         */
+
+        /*  ****************************************************************************************
+         *   解释2：关于红黑树的平衡调整？
+         *  ****************************************************************************************
+         *   红黑树是一种自平衡二叉树，拥有优秀的查询和插入/删除性能，广泛应用于关联数组。
+         *   对比AVL树，AVL要求每个结点的左右子树的高度之差的绝对值（平衡因子）最多为1，而红黑树通过适当的
+         *   放低该条件（红黑树限制从根到叶子的最长的可能路径不多于最短的可能路径的两倍长，结果是这个树
+         *   大致上是平衡的），以此来减少插入/删除时的平衡调整耗时，从而获取更好的性能，而这虽然会导致红黑树
+         *   的查询会比AVL稍慢，但相比插入/删除时获取的时间，这个付出在大多数情况下显然是值得的。
+         *   在HashMap中的应用：HashMap在进行插入和删除时有可能会触发红黑树的插入平衡调整（balanceInsertion方法）
+         *   或删除平衡调整（balanceDeletion ）方法，调整的方式主要有以下手段：左旋转（rotateLeft方法）、
+         *   右旋转（rotateRight方法）、改变节点颜色（x.red = false、x.red = true），进行调整的原因是为了
+         *   维持红黑树的数据结构。
+         */
 
         /**
          * Splits nodes in a tree bin into lower and upper tree bins,
@@ -2575,5 +2673,43 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      *
      **********************************************************************************************************/
 
-    /
+    /*
+     * HashMap和Hashtable的区别：
+     *    1.HashMap允许key和value为null，Hashtable不允许。
+	 *    2.HashMap的默认初始容量为16，Hashtable为11。
+	 *    3.HashMap的扩容为原来的2倍，Hashtable的扩容为原来的2倍加1。
+	 *    4.HashMap是非线程安全的，Hashtable是线程安全的。
+	 *    5.HashMap的hash值重新计算过，Hashtable直接使用hashCode。
+	 *    6.HashMap去掉了Hashtable中的contains方法。
+	 *    7.HashMap继承自AbstractMap类，Hashtable继承自Dictionary类。
+     */
+
+    /*
+     * 总结：
+     *   1. HashMap的底层是个Node数组（Node<K,V>[] table），在数组的具体索引位置，
+     *      如果存在多个节点，则可能是以链表或红黑树的形式存在。
+	 *   2 .增加、删除、查找键值对时，定位到哈希桶数组的位置是很关键的一步，源码中是通过下面3个操作来完成这一步：
+	 *          1）拿到key的hashCode值；
+	 *          2）将hashCode的高位参与运算，重新计算hash值；
+	 *          3）将计算出来的hash值与(table.length - 1)进行&运算。
+	 *   3. HashMap的默认初始容量（capacity）是16，capacity必须为2的幂次方；默认负载因子（load factor）是0.75；
+	 *      实际能存放的节点个数（threshold，即触发扩容的阈值）= capacity * load factor。
+	 *   4. HashMap在触发扩容后，阈值会变为原来的2倍，并且会进行重hash，重hash后索引位置index的节点的新分布位置
+	 *      最多只有两个：原索引位置或原索引+oldCap位置。例如capacity为16，索引位置5的节点扩容后，只可能分布在
+	 *      新报索引位置5和索引位置21（5+16）。
+	 *   5. 导致HashMap扩容后，同一个索引位置的节点重hash最多分布在两个位置的根本原因是：
+	 *          1）table的长度始终为2的n次方；
+	 *          2）索引位置的计算方法为“(table.length - 1) & hash”。HashMap扩容是一个比较耗时的操作，
+	 *          定义HashMap时尽量给个接近的初始容量值。
+	 *   6. HashMap有threshold属性和loadFactor属性，但是没有capacity属性。初始化时，如果传了初始化容量值，
+	 *      该值是存在threshold变量，并且Node数组是在第一次put时才会进行初始化，初始化时会将此时的threshold值
+	 *      作为新表的capacity值，然后用capacity和loadFactor计算新表的真正threshold值。
+	 *   7. 当同一个索引位置的节点在增加后达到9个时，会触发链表节点（Node）转红黑树节点（TreeNode，间接继承Node），
+	 *      转成红黑树节点后，其实链表的结构还存在，通过next属性维持。链表节点转红黑树节点的具体方法为源码中的
+	 *      treeifyBin(Node<K,V>[] tab, int hash)方法。
+	 *   8. 当同一个索引位置的节点在移除后达到6个时，并且该索引位置的节点为红黑树节点，会触发红黑树节点转链表节点。
+	 *      红黑树节点转链表节点的具体方法为源码中的untreeify(HashMap<K,V> map)方法。
+	 *   9. HashMap在JDK1.8之后不再有死循环的问题，JDK1.8之前存在死循环的根本原因是在扩容后同一索引位置的节点顺序会反掉。
+	 *   10.HashMap是非线程安全的，在并发场景下使用ConcurrentHashMap来代替。
+     */
 }
