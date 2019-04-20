@@ -336,11 +336,9 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * never be used in index calculations because of table bounds.
      */
     static final int hash(Object key) {
-        int h;
         // 方法：
         //     1. 先拿到key的hashCode值，
         //     2. 将hashCode的高16位参与运算
-        return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
         // 目的：
         //       主要是为了在table的length小的时候，让高位也参与运算，
         //       高16位 ^ 低16位，信息混合，使得新值更具有随机性，并且不会有太大的开销
@@ -348,6 +346,8 @@ public class HashMap<K,V> extends AbstractMap<K,V>
         //    1. HashMap的实现方式依赖于hashCode函数的实现，特别是，hash值的低位应该均匀分布，
         //       如果在较低位上有许多冲突，则HashMap将会出现较大的桶碰撞几率
         //    2. 因为HashCode方法的实现超出了HashMap的控制范围（每个对象都可以有自己的实现方式，质量参差不齐）
+        int h;
+        return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
     }
 
     /**
@@ -705,27 +705,6 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     }
 
     /**
-     * 如果老表的容量大于0，判断老表的容量是否超过最大容量值：如果超过则将阈值设置为Integer.MAX_VALUE，并直接返回老表（此时oldCap * 2比Integer.MAX_VALUE大，因此无法进行重新分布，只是单纯的将阈值扩容到最大）；如果容量 * 2小于最大容量并且不小于16，则将阈值设置为原来的两倍。
-     * 如果老表的容量为0，老表的阈值大于0，这种情况是传了容量的new方法创建的空表，将新表的容量设置为老表的阈值（这种情况发生在新创建的HashMap第一次put时，该HashMap初始化的时候传了初始容量，由于HashMap并没有capacity变量来存放容量值，因此传进来的初始容量是存放在threshold变量上（查看HashMap(int initialCapacity, float loadFactor)方法），因此此时老表的threshold的值就是我们要新创建的HashMap的capacity，所以将新表的容量设置为老表的阈值。
-     * 如果老表的容量为0，老表的阈值为0，这种情况是没有传容量的new方法创建的空表，将阈值和容量设置为默认值。
-     * 如果新表的阈值为空，则通过新的容量 * 负载因子获得阈值（这种情况是初始化的时候传了初始容量，跟第2点相同情况，也只有走到第2点才会走到该情况）。
-     * 将当前阈值设置为刚计算出来的新的阈值，定义新表，容量为刚计算出来的新容量，将当前的表设置为新定义的表。
-     * 如果老表不为空，则需遍历所有节点，将节点赋值给新表。
-     * 将老表上索引为j的头结点赋值给e节点，并将老表上索引为j的节点设置为空。
-     * 如果e的next节点为空，则代表老表的该位置只有1个节点，通过hash值计算新表的索引位置，直接将该节点放在新表的该位置上。
-     * 如果e的next节点不为空，并且e为TreeNode，则调用split方法（见下文代码块10）进行hash分布。
-     * 如果e的next节点不为空，并且e为普通的链表节点，则进行普通的hash分布。
-     * 如果e的hash值与老表的容量（为一串只有1个为2的二进制数，例如16为0000 0000 0001 0000）进行位与运算为0，则说明e节点扩容后的索引位置跟老表的索引位置一样（见例子1），进行链表拼接操作：如果loTail为空，代表该节点为第一个节点，则将loHead赋值为该节点；否则将节点添加在loTail后面，并将loTail赋值为新增的节点。
-     * 如果e的hash值与老表的容量（为一串只有1个为2的二进制数，例如16为0000 0000 0001 0000）进行位与运算为1，则说明e节点扩容后的索引位置为：老表的索引位置＋oldCap（见例子1），进行链表拼接操作：如果hiTail为空，代表该节点为第一个节点，则将hiHead赋值为该节点；否则将节点添加在hiTail后面，并将hiTail赋值为新增的节点。
-     * 老表节点重新hash分布在新表结束后，如果loTail不为空（说明老表的数据有分布到新表上原索引位置的节点），则将最后一个节点的next设为空，并将新表上原索引位置的节点设置为对应的头结点；如果hiTail不为空（说明老表的数据有分布到新表上原索引+oldCap位置的节点），则将最后一个节点的next设为空，并将新表上索引位置为原索引+oldCap的节点设置为对应的头结点。
-     * 返回新表。
-     * ---------------------
-     * 作者：程序员囧辉
-     * 来源：CSDN
-     * 原文：https://blog.csdn.net/v123411739/article/details/78996181
-     * 版权声明：本文为博主原创文章，转载请附上博文链接！
-     */
-    /**
      * Initializes or doubles table size.  If null, allocates in
      * accord with initial capacity target held in field threshold.
      * Otherwise, because we are using power-of-two expansion, the
@@ -746,11 +725,6 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * 如果e的hash值与老表的容量（为一串只有1个为2的二进制数，例如16为0000 0000 0001 0000）进行位与运算为1，则说明e节点扩容后的索引位置为：老表的索引位置＋oldCap（见例子1），进行链表拼接操作：如果hiTail为空，代表该节点为第一个节点，则将hiHead赋值为该节点；否则将节点添加在hiTail后面，并将hiTail赋值为新增的节点。
      * 老表节点重新hash分布在新表结束后，如果loTail不为空（说明老表的数据有分布到新表上原索引位置的节点），则将最后一个节点的next设为空，并将新表上原索引位置的节点设置为对应的头结点；如果hiTail不为空（说明老表的数据有分布到新表上原索引+oldCap位置的节点），则将最后一个节点的next设为空，并将新表上索引位置为原索引+oldCap的节点设置为对应的头结点。
      * 返回新表。
-     * ---------------------
-     * 作者：程序员囧辉
-     * 来源：CSDN
-     * 原文：https://blog.csdn.net/v123411739/article/details/78996181
-     * 版权声明：本文为博主原创文章，转载请附上博文链接！
      * </pre>
      * @return the table
      */
