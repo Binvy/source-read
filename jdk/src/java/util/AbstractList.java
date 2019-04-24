@@ -331,21 +331,21 @@ public abstract class AbstractList<E> extends AbstractCollection<E> implements L
         /**
          * Index of element to be returned by subsequent call to next.
          */
-        int cursor = 0;
+        int cursor = 0; // 下次调用next()方法返回的元素索引，从0开始
 
         /**
          * Index of element returned by most recent call to next or
          * previous.  Reset to -1 if this element is deleted by a call
          * to remove.
          */
-        int lastRet = -1;
+        int lastRet = -1; // 最近调用next()或者previous()方法返回的元素索引，如果元素被remove()删除，重置为-1
 
         /**
          * The modCount value that the iterator believes that the backing
          * List should have.  If this expectation is violated, the iterator
          * has detected concurrent modification.
          */
-        int expectedModCount = modCount;
+        int expectedModCount = modCount; // 如果迭代器保存List的修改次数和List实际修改次数不一致，则表示有并发修改
 
         public boolean hasNext() {
             return cursor != size();
@@ -357,7 +357,7 @@ public abstract class AbstractList<E> extends AbstractCollection<E> implements L
                 int i = cursor;
                 E next = get(i);
                 lastRet = i;
-                cursor = i + 1;
+                cursor = i + 1; // 索引（游标、指针）加1
                 return next;
             } catch (IndexOutOfBoundsException e) {
                 checkForComodification();

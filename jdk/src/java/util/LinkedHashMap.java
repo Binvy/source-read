@@ -283,11 +283,13 @@ public class LinkedHashMap<K,V>
     void afterNodeRemoval(Node<K,V> e) { // unlink
         LinkedHashMap.Entry<K,V> p =
             (LinkedHashMap.Entry<K,V>)e, b = p.before, a = p.after;
-        p.before = p.after = null;
+        p.before = p.after = null; // 将p节点的前驱、后继节点设置为空
+        // 如果b为空，表示p节点为头节点
         if (b == null)
             head = a;
         else
             b.after = a;
+        // 如果a为空，表示p节点为尾节点
         if (a == null)
             tail = b;
         else
@@ -366,7 +368,7 @@ public class LinkedHashMap<K,V>
      */
     public LinkedHashMap() {
         super();
-        accessOrder = false;
+        accessOrder = false; // 默认排序为插入顺序，而非访问排序
     }
 
     /**

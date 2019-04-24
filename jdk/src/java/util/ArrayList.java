@@ -25,10 +25,11 @@
 
 package java.util;
 
+import sun.misc.SharedSecrets;
+
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
-import sun.misc.SharedSecrets;
 
 /**
  * Resizable-array implementation of the <tt>List</tt> interface.  Implements
@@ -112,19 +113,19 @@ public class ArrayList<E> extends AbstractList<E>
     /**
      * Default initial capacity.
      */
-    private static final int DEFAULT_CAPACITY = 10;
+    private static final int DEFAULT_CAPACITY = 10; // 默认容量
 
     /**
      * Shared empty array instance used for empty instances.
      */
-    private static final Object[] EMPTY_ELEMENTDATA = {};
+    private static final Object[] EMPTY_ELEMENTDATA = {}; // 空数据的数组列表
 
     /**
      * Shared empty array instance used for default sized empty instances. We
      * distinguish this from EMPTY_ELEMENTDATA to know how much to inflate when
      * first element is added.
      */
-    private static final Object[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};
+    private static final Object[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {}; // 默认容量的空数组列表（为了区分添加首个元素时扩充多少容量）
 
     /**
      * The array buffer into which the elements of the ArrayList are stored.
@@ -139,7 +140,7 @@ public class ArrayList<E> extends AbstractList<E>
      *
      * @serial
      */
-    private int size;
+    private int size; // 数组列表长度（所包含元素的数量）
 
     /**
      * Constructs an empty list with the specified initial capacity.
@@ -205,9 +206,12 @@ public class ArrayList<E> extends AbstractList<E>
      * necessary, to ensure that it can hold at least the number of elements
      * specified by the minimum capacity argument.
      *
+     * 增加数组列表的容量，确保可以容纳minCapacity个元素
+     *
      * @param   minCapacity   the desired minimum capacity
      */
     public void ensureCapacity(int minCapacity) {
+        // 如果是初始的数组列表，>10进行扩容，否则，全部进行扩容
         int minExpand = (elementData != DEFAULTCAPACITY_EMPTY_ELEMENTDATA)
             // any size if not default element table
             ? 0
@@ -244,6 +248,8 @@ public class ArrayList<E> extends AbstractList<E>
      * Some VMs reserve some header words in an array.
      * Attempts to allocate larger arrays may result in
      * OutOfMemoryError: Requested array size exceeds VM limit
+     *
+     * 数组最大分配的长度（分配长度超过虚拟机限制，可能导致内存溢出）
      */
     private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
 
@@ -256,13 +262,13 @@ public class ArrayList<E> extends AbstractList<E>
     private void grow(int minCapacity) {
         // overflow-conscious code
         int oldCapacity = elementData.length;
-        int newCapacity = oldCapacity + (oldCapacity >> 1);
-        if (newCapacity - minCapacity < 0)
+        int newCapacity = oldCapacity + (oldCapacity >> 1); // 默认新容量 = 3倍旧容量
+        if (newCapacity - minCapacity < 0) // 如果入参minCapacity 大于 oldCapacity*3，则新容量=minCapacity
             newCapacity = minCapacity;
-        if (newCapacity - MAX_ARRAY_SIZE > 0)
+        if (newCapacity - MAX_ARRAY_SIZE > 0) // 如果新容量大于最大容量，继续扩
             newCapacity = hugeCapacity(minCapacity);
         // minCapacity is usually close to size, so this is a win:
-        elementData = Arrays.copyOf(elementData, newCapacity);
+        elementData = Arrays.copyOf(elementData, newCapacity); // 赋值原数组列表的元素到新数组列表里
     }
 
     private static int hugeCapacity(int minCapacity) {
@@ -406,10 +412,13 @@ public class ArrayList<E> extends AbstractList<E>
      */
     @SuppressWarnings("unchecked")
     public <T> T[] toArray(T[] a) {
+        // 如果数组a长度小于this数组列表尺寸，返回类型为a，元素为this数组列表元素的数组
         if (a.length < size)
             // Make a new array of a's runtime type, but my contents:
             return (T[]) Arrays.copyOf(elementData, size, a.getClass());
+        // 如果数组a长度不小于this数组列表尺寸，将a前面this.size个元素全部替换为this数组列表的元素，
         System.arraycopy(elementData, 0, a, 0, size);
+        // 如果数组a长度大于this数组列表尺寸，size下标处的元素赋值为null（标记作用，仅用在调用者知道list不含null时，判断list的长度）
         if (a.length > size)
             a[size] = null;
         return a;
