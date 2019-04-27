@@ -126,7 +126,7 @@ public class LinkedList<E>
         final Node<E> f = first;
         final Node<E> newNode = new Node<>(null, e, f);
         first = newNode;
-        if (f == null)
+        if (f == null) // 表示原列表是空列表，添加节点后，新节点即使头节点，也是尾节点
             last = newNode;
         else
             f.prev = newNode;
@@ -157,7 +157,7 @@ public class LinkedList<E>
         final Node<E> pred = succ.prev;
         final Node<E> newNode = new Node<>(pred, e, succ);
         succ.prev = newNode;
-        if (pred == null)
+        if (pred == null) // 表示succ为列表头节点
             first = newNode;
         else
             pred.next = newNode;
@@ -175,7 +175,7 @@ public class LinkedList<E>
         f.item = null;
         f.next = null; // help GC
         first = next;
-        if (next == null)
+        if (next == null) // 只有头节点
             last = null;
         else
             next.prev = null;
